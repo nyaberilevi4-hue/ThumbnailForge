@@ -7,9 +7,10 @@ export default function HeroSection() {
 
   return (
     <section id="hero" className="relative min-h-screen bg-gradient-to-b from-[#0B0B0B] via-[#1a1a1a] to-[#0B0B0B] pt-32 pb-20 px-4 overflow-hidden">
-      <div className="absolute inset-0 opacity-30">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-red-500/20 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-yellow-500/10 rounded-full blur-3xl" />
+      <div className="absolute inset-0 opacity-60">
+        <div className="absolute top-10 left-10 w-96 h-96 bg-[#FF0000]/40 rounded-full blur-3xl mix-blend-screen animate-blob-1" />
+        <div className="absolute bottom-10 right-10 w-[28rem] h-[28rem] bg-[#FACC15]/30 rounded-full blur-3xl mix-blend-screen animate-blob-2" />
+        <div className="absolute top-1/3 right-1/4 w-80 h-80 bg-[#FF0000]/25 rounded-full blur-3xl mix-blend-screen animate-blob-3" />
       </div>
 
       <div className="relative max-w-7xl mx-auto">

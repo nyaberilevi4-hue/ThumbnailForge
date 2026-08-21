@@ -91,3 +91,35 @@
     font-family: 'Poppins', sans-serif;
   }
 }
+/* Animated moving-color background used in the hero section */
+@keyframes blob-move-1 {
+  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
+  33%  { transform: translate(8%, 12%) scale(1.15) rotate(60deg); }
+  66%  { transform: translate(-6%, 6%) scale(0.95) rotate(140deg); }
+  100% { transform: translate(0, 0) scale(1) rotate(360deg); }
+}
+
+@keyframes blob-move-2 {
+  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
+  33%  { transform: translate(-10%, -8%) scale(1.1) rotate(-50deg); }
+  66%  { transform: translate(6%, -10%) scale(0.9) rotate(-120deg); }
+  100% { transform: translate(0, 0) scale(1) rotate(-360deg); }
+}
+
+@keyframes blob-move-3 {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(-6%, 10%) scale(1.2); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+.animate-blob-1 {
+  animation: blob-move-1 18s ease-in-out infinite;
+}
+
+.animate-blob-2 {
+  animation: blob-move-2 22s ease-in-out infinite;
+}
+
+.animate-blob-3 {
+  animation: blob-move-3 14s ease-in-out infinite;
+}
