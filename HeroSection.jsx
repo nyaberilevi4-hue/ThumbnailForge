@@ -1,22 +1,21 @@
 import React from 'react';
 import { ChevronDown } from 'lucide-react';
 import ThumbnailGenerator from '@/ThumbnailGenerator';
+import AnimatedBackground from '@/AnimatedBackground';
 
 export default function HeroSection() {
   const [showGenerator, setShowGenerator] = React.useState(false);
 
   return (
     <section id="hero" className="relative min-h-screen bg-gradient-to-b from-[#0B0B0B] via-[#1a1a1a] to-[#0B0B0B] pt-32 pb-20 px-4 overflow-hidden">
-      <div className="absolute inset-0 opacity-80">
-        <div className="absolute top-10 left-10 w-96 h-96 bg-[#FF0000]/50 rounded-full blur-3xl mix-blend-screen animate-blob-1" />
-        <div className="absolute bottom-10 right-10 w-[28rem] h-[28rem] bg-[#FACC15]/40 rounded-full blur-3xl mix-blend-screen animate-blob-2" />
-        <div className="absolute top-1/3 right-1/4 w-80 h-80 bg-[#FF0000]/35 rounded-full blur-3xl mix-blend-screen animate-blob-3" />
-        <div className="absolute top-1/2 left-1/4 w-[32rem] h-[32rem] bg-[#FACC15]/25 rounded-full blur-3xl mix-blend-screen animate-blob-4" />
-        <div className="absolute bottom-0 left-1/2 w-72 h-72 bg-[#FF0000]/45 rounded-full blur-3xl mix-blend-screen animate-blob-5" />
-      </div>
+      <AnimatedBackground />
 
       <div className="relative max-w-7xl mx-auto">
         <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2 px-5 py-2.5 mb-8 rounded-full bg-[#FF0000]/15 border border-[#FF0000]/60">
+            <span className="text-[#FF4D4D] font-bold text-sm">⚡ AI-Powered Thumbnail Creator</span>
+          </div>
+
           <h1 className="text-6xl md:text-8xl font-black text-white mb-6 leading-tight animate-glow-pulse">
             Create <span className="text-[#FF0000]">Viral</span> YouTube
             <br />
