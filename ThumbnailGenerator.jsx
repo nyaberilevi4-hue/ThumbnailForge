@@ -1,19 +1,32 @@
 import React, { useState, useEffect } from 'react';
 
-import { Zap, Download, RefreshCw, Star, Lock, AlertCircle } from 'lucide-react';
+import { Zap, Download, RefreshCw, Star, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProUpgradeModal from './ProUpgradeModal';
 import ImageUpload from './ImageUpload';
 import TitleSuggestions from './TitleSuggestions';
 import { supabase } from '@/supabaseClient';
+import { useAuth } from '@/AuthContext';
 
 const FREE_LIMIT = 3;
 const STORAGE_KEY = 'thumbnailforge_usage';
 
 function getUsageData() {
-  const data = localStorage.getItem(STORAGE_KEY);
-  if (!data) return { count: 0, date: new Date().toDateString() };
-  return JSON.parse(data);
+  const today = new Date().toDateString();
+
+  try {
+    const rawData = localStorage.getItem(STORAGE_KEY);
+    if (!rawData) return { count: 0, date: today };
+
+    const data = JSON.parse(rawData);
+    if (!Number.isInteger(data.count) || data.count < 0 || typeof data.date !== 'string') {
+      return { count: 0, date: today };
+    }
+
+    return data;
+  } catch {
+    return { count: 0, date: today };
+  }
 }
 
 function canGenerate() {
@@ -25,10 +38,14 @@ function canGenerate() {
 function incrementUsage() {
   const usage = getUsageData();
   const today = new Date().toDateString();
-  if (usage.date !== today) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ count: 1, date: today }));
-  } else {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ count: usage.count + 1, date: today }));
+  const nextUsage = usage.date !== today
+    ? { count: 1, date: today }
+    : { count: usage.count + 1, date: today };
+
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextUsage));
+  } catch {
+    // Generation still works when browser storage is unavailable.
   }
 }
 
@@ -41,7 +58,7 @@ function getRemainingGenerations() {
 const CTRBadge = ({ score }) => {
   const color = score >= 80 ? 'text-green-400 border-green-400/40 bg-green-400/10'
     : score >= 60 ? 'text-[#FACC15] border-[#FACC15]/40 bg-[#FACC15]/10'
-    : 'text-[#FF0000] border-[#FF0000]/40 bg-[#FF0000]/10';
+      : 'text-[#FF0000] border-[#FF0000]/40 bg-[#FF0000]/10';
   return (
     <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${color}`}>
       CTR Score: {score}%
@@ -50,6 +67,7 @@ const CTRBadge = ({ score }) => {
 };
 
 export default function ThumbnailGenerator() {
+  const { user, isLoadingAuth } = useAuth();
   const [form, setForm] = useState({
     videoTitle: '',
     videoTopic: '',
@@ -69,49 +87,55 @@ export default function ThumbnailGenerator() {
   const emotions = ['Shock', 'Excitement', 'Curiosity', 'Urgency', 'Neutral'];
 
   useEffect(() => {
-    loadHistory();
-  }, []);
-
-  const loadHistory = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error: fetchError } = await supabase
-        .from('thumbnails')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(6);
-
-      if (fetchError) throw fetchError;
-
-      setResults(data.map(s => ({
-        id: s.id, url: s.image_url, ctr: s.ctr_score, saved: true,
-      })));
-      setFavorites(data.filter(s => s.is_favorite).map(s => s.id));
-    } catch {
-      // not signed in yet or none saved — ignore
-    } finally {
+    if (isLoadingAuth) return;
+    if (!user) {
       setLoadingHistory(false);
+      return;
     }
-  };
+
+    const loadHistory = async () => {
+      setLoadingHistory(true);
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('thumbnails')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(6);
+
+        if (fetchError) throw fetchError;
+
+        setResults(data.map(s => ({
+          id: s.id, url: s.image_url, ctr: s.ctr_score, saved: true,
+        })));
+        setFavorites(data.filter(s => s.is_favorite).map(s => s.id));
+      } catch (err) {
+        console.error('Failed to load thumbnail history:', err);
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+
+    loadHistory();
+  }, [isLoadingAuth, user]);
 
   const handleFileSelect = async (file) => {
+    setError('');
     setUploading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not signed in');
 
-      const path = `${user.id}/base-${Date.now()}-${file.name}`;
+      const extension = file.name.split('.').pop()?.replace(/[^a-z0-9]/gi, '') || 'png';
+      const path = `${user.id}/base-${crypto.randomUUID()}.${extension}`;
       const { error: uploadError } = await supabase.storage
         .from('thumbnails')
-        .upload(path, file, { contentType: file.type });
+        .upload(path, file, { contentType: file.type, upsert: false });
       if (uploadError) throw uploadError;
 
       const { data: publicUrlData } = supabase.storage.from('thumbnails').getPublicUrl(path);
       setBaseImageUrl(publicUrlData.publicUrl);
-    } catch {
+    } catch (err) {
+      console.error('Image upload failed:', err);
       setError('Failed to upload image. Please try again.');
     } finally {
       setUploading(false);
@@ -119,10 +143,7 @@ export default function ThumbnailGenerator() {
   };
 
   const buildPrompt = () => {
-    const base = baseImageUrl
-      ? `Use the provided base image as the starting visual — keep its subject and key composition, but enhance it into`
-      : `Create`;
-    return `${base} a YouTube thumbnail image for a video titled "${form.videoTitle}" about "${form.videoTopic}".
+    return `Create a YouTube thumbnail image for a video titled "${form.videoTitle}" about "${form.videoTopic}".
 Style: ${form.thumbnailStyle}. Emotion/tone: ${form.emotionStyle}.
 Make it eye-catching with bold text, vibrant colors, high contrast, and professional composition typical of viral YouTube thumbnails.
 The thumbnail should have a 16:9 aspect ratio, include dramatic lighting, and use visual elements that maximize click-through rate.`;
@@ -142,7 +163,6 @@ The thumbnail should have a 16:9 aspect ratio, include dramatic lighting, and us
     }
 
     setGenerating(true);
-    incrementUsage();
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -153,6 +173,7 @@ The thumbnail should have a 16:9 aspect ratio, include dramatic lighting, and us
       });
       if (fnError) throw fnError;
       if (fnData?.error) throw new Error(fnData.error);
+      if (!fnData?.url) throw new Error('The image service returned no URL.');
 
       const url = fnData.url;
       const ctr = generateCTRScore();
@@ -161,8 +182,8 @@ The thumbnail should have a 16:9 aspect ratio, include dramatic lighting, and us
         .from('thumbnails')
         .insert({
           user_id: session.user.id,
-          video_title: form.videoTitle,
-          video_topic: form.videoTopic,
+          video_title: form.videoTitle.trim(),
+          video_topic: form.videoTopic.trim(),
           thumbnail_style: form.thumbnailStyle,
           emotion_style: form.emotionStyle,
           image_url: url,
@@ -174,6 +195,7 @@ The thumbnail should have a 16:9 aspect ratio, include dramatic lighting, and us
         .single();
       if (insertError) throw insertError;
 
+      incrementUsage();
       setResults(prev => [{ url, ctr, id: saved.id, saved: true }, ...prev].slice(0, 6));
     } catch (err) {
       console.error('Generation failed:', err);
@@ -188,11 +210,13 @@ The thumbnail should have a 16:9 aspect ratio, include dramatic lighting, and us
       const response = await fetch(imageUrl);
       const blob = await response.blob();
       const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
+      const objectUrl = URL.createObjectURL(blob);
+      link.href = objectUrl;
       link.download = `thumbnail-${Date.now()}.png`;
       link.click();
+      URL.revokeObjectURL(objectUrl);
     } catch {
-      window.open(imageUrl, '_blank');
+      window.open(imageUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -205,12 +229,15 @@ The thumbnail should have a 16:9 aspect ratio, include dramatic lighting, and us
         .update({ is_favorite: !isFav })
         .eq('id', id);
       if (updateError) throw updateError;
-    } catch {
-      // ignore — local state already toggled
+    } catch (err) {
+      console.error('Failed to update favorite:', err);
+      setFavorites(prev => isFav ? [...prev, id] : prev.filter(f => f !== id));
+      setError('Could not update favorite. Please try again.');
     }
   };
 
   const remaining = getRemainingGenerations();
+  const isBusy = generating || uploading || isLoadingAuth;
 
   return (
     <>
@@ -257,6 +284,7 @@ The thumbnail should have a 16:9 aspect ratio, include dramatic lighting, and us
             uploading={uploading}
             onChange={handleFileSelect}
             onClear={() => setBaseImageUrl(null)}
+            onError={setError}
           />
 
           <div className="grid grid-cols-2 gap-3">
@@ -290,7 +318,7 @@ The thumbnail should have a 16:9 aspect ratio, include dramatic lighting, and us
 
           <button
             onClick={handleGenerate}
-            disabled={generating}
+            disabled={isBusy}
             className="w-full py-3 bg-[#FF0000] hover:bg-red-600 disabled:bg-[#FF0000]/40 text-white font-black rounded-xl transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
           >
             {generating ? (
